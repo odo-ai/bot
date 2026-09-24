@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chat Interface</title>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: #f9f9f9;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Боковая панель истории */
+        .sidebar {
+            width: 260px;
+            background: #202123;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            box-sizing: border-box;
+            border-right: 1px solid #333;
+            position: relative;
+        }
+
+        .new-chat-btn {
+            background: #007bff;
+            color: #fff;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: background 0.2s;
+        }
+
+        .new-chat-btn:hover {
+            background: #0056b3;
+        }
+
+        .history-title {
+            font-size: 12px;
+            color: #8e8ea0;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        .history-list {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .history-item {
+            position: relative;
+            padding: 10px;
+            padding-right: 35px;
+            border-radius: 6px;
+            background: #2a2b32;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .history-item:hover, .history-item.active {
+            background: #343541;
+        }
+
+        .history-item-title {
+            font-size: 14px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .history-item-date {
+            font-size: 11px;
+            color: #8e8ea0;
+            margin-top: 4px;
+        }
+
+        /* Кнопка с тремя точками в боковом меню */
+        .history-options-btn {
+            display: none;
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            color: #ccc;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        .history-item:hover .history-options-btn {
+            display: flex;
+        }
+
+        .history-options-btn:hover {
+            background: rgba(255, 255, 255, 0.25);
+            color: #fff;
+        }
+
+        /* Контекстное меню */
+        .chat-menu {
+            position: absolute;
+            background: #202123;
+            border: 1px solid #444;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            width: 170px;
+            overflow: hidden;
+            padding: 4px 0;
+        }
+
+        .chat-menu-item {
+            padding: 8px 12px;
+            font-size: 13px;
+            color: #ececf1;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            transition: background 0.15s;
+        }
+
+        .chat-menu-item:hover {
+            background: #3e3f4b;
+        }
+
+        .chat-menu-item.delete {
+            color: #ff4d4f;
+        }
+
+        .chat-menu-item.delete:hover {
+            background: rgba(255, 77, 79, 0.15);
+        }
+
+        /* Главный контейнер чата */
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #ffffff;
+            position: relative;
+        }
+
+        .chat-header {
+            padding: 15px 20px;
+            background: #fff;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-header h3 {
+            margin: 0;
+            font-size: 18px;
+            color: #333;
+        }
+
+        #chat-log {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            scroll-behavior: smooth;
+        }
+
+        /* Сообщения */
+        .message {
+            position: relative;
+            max-width: 80%;
+            padding: 15px 20px;
+            border-radius: 18px;
+            font-size: 16px;
+            line-height: 1.5;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .user-message {
+            align-self: flex-end;
+            background-color: #007bff;
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .ai-message {
+            align-self: flex-start;
+            background-color: #f1f1f1;
+            color: #222;
+            border: 1px solid #e0e0e0;
+            border-bottom-left-radius: 4px;
+        }
+
+        .author-label {
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            display: block;
+            opacity: 0.6;
+        }
+
+        /* Кнопка закладки на сообщении */
+        .bookmark-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.08);
+            border: none;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            color: #666;
+            transition: all 0.2s ease;
+        }
+
+        .user-message .bookmark-btn {
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+        }
+
+        .message:hover .bookmark-btn,
+        .bookmark-btn.bookmarked {
+            display: flex;
+        }
+
+        /* Стиль активной сохраненной закладки (заливка синим) */
+        .bookmark-btn.bookmarked {
+            background-color: #007bff !important;
+            color: #ffffff !important;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        .input-panel {
+            padding: 20px;
+            background: #fff;
+            border-top: 1px solid #eee;
+        }
+
+        .input-wrapper {
+            display: flex;
+            gap: 12px;
+            background: #f4f4f4;
+            padding: 8px 12px;
+            border-radius: 25px;
+            border: 1px solid #ddd;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            border: none;
+            background: transparent;
+            padding: 10px;
+            font-size: 16px;
+            outline: none;
+        }
+
+        .send-btn {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .send-btn:hover {
+            background-color: #0056b3;
+        }
+
+        /* Раздел Избранного */
+        .favorites-view {
+            display: none;
+            flex-direction: column;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #ffffff;
+            z-index: 100;
+        }
+
+        .favorites-view.active {
+            display: flex;
+        }
+
+        .favorites-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .close-favorites-btn {
+            background: #f1f1f1;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .close-favorites-btn:hover {
+            background: #e0e0e0;
+        }
+
+        .favorites-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .favorite-card {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            padding: 15px;
+            position: relative;
+        }
+
+        .favorite-card-remove {
+            position: absolute;
+            top: 10px;
+            right: 12px;
+            background: transparent;
+            border: none;
+            color: #888;
+            cursor: pointer;
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .favorite-card-remove:hover {
+            background: rgba(255, 77, 79, 0.1);
+            color: #ff4d4f;
+        }
+
+        .empty-favorites {
+            text-align: center;
+            color: #8e8ea0;
+            margin-top: 50px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Боковое меню -->
+<div class="sidebar">
+    <button id="new-chat-btn" class="new-chat-btn">＋ Новый чат</button>
+    <div class="history-title">История чатов</div>
+    <div id="history-list" class="history-list"></div>
+</div>
+
+<!-- Область чата -->
+<div class="chat-container">
+    <div class="chat-header">
+        <h3 id="chat-title">Новый диалог</h3>
+    </div>
+
+    <div id="chat-log"></div>
+
+    <div class="input-panel">
+        <div class="input-wrapper">
+            <input type="text" id="user-input" placeholder="Напишите сообщение..." autocomplete="off">
+            <button id="send-btn" class="send-btn">➤</button>
+        </div>
+    </div>
+
+    <!-- Раздел с Избранными сообщениями -->
+    <div id="favorites-view" class="favorites-view">
+        <div class="favorites-header">
+            <h3>Избранные сообщения</h3>
+            <button id="close-favorites-btn" class="close-favorites-btn">Закрыть</button>
+        </div>
+        <div id="favorites-list" class="favorites-list"></div>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+
+    const chatLog = document.getElementById('chat-log');
+    const userInput = document.getElementById('user-input');
+    const sendBtn = document.getElementById('send-btn');
+    const newChatBtn = document.getElementById('new-chat-btn');
+    const historyList = document.getElementById('history-list');
+    const chatTitle = document.getElementById('chat-title');
+    const favoritesView = document.getElementById('favorites-view');
+    const favoritesList = document.getElementById('favorites-list');
+    const closeFavoritesBtn = document.getElementById('close-favorites-btn');
+
+    const WEBHOOK_URL = "https://n8n.2gis.io/webhook/bot-development-memory-julia";
+
+    let activeSessionId = null;
+    let activeMenu = null;
+
+    function getAllSessions() {
+        return JSON.parse(localStorage.getItem('chat_sessions_all') || '[]');
+    }
+
+    function saveAllSessions(sessions) {
+        localStorage.setItem('chat_sessions_all', JSON.stringify(sessions));
+    }
+
+    function generateId() {
+        return 'id_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now();
+    }
+
+    function createNewSession() {
+        const newId = generateId();
+        const newSession = {
+            id: newId,
+            title: 'Новый чат',
+            date: new Date().toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }),
+            messages: [
+                {
+                    id: generateId(),
+                    role: 'ai',
+                    text: 'Здравствуйте! Чем я могу вам помочь сегодня?',
+                    isFavorite: false
+                }
+            ]
+        };
+
+        const sessions = getAllSessions();
+        sessions.unshift(newSession);
+        saveAllSessions(sessions);
+        
+        switchSession(newId);
+    }
+
+    function switchSession(sessionId) {
+        activeSessionId = sessionId;
+        closeMenu();
+        closeFavorites();
+        renderHistoryList();
+        renderActiveChat();
+    }
+
+    function closeMenu() {
+        if (activeMenu) {
+            activeMenu.remove();
+            activeMenu = null;
+        }
+    }
+
+    function renderHistoryList() {
+        historyList.innerHTML = '';
+        const sessions = getAllSessions();
+
+        sessions.forEach(session => {
+            const item = document.createElement('div');
+            item.className = `history-item ${session.id === activeSessionId ? 'active' : ''}`;
+            
+            item.innerHTML = `
+                <div class="history-item-title">${session.title}</div>
+                <div class="history-item-date">${session.date}</div>
+                <div class="history-options-btn">⋮</div>
+            `;
+
+            item.addEventListener('click', (e) => {
+                if (e.target.classList.contains('history-options-btn')) return;
+                switchSession(session.id);
+            });
+
+            const optionsBtn = item.querySelector('.history-options-btn');
+            optionsBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openContextMenu(e, session.id, session.title);
+            });
+
+            historyList.appendChild(item);
+        });
+    }
+
+    function openContextMenu(event, sessionId, currentTitle) {
+        closeMenu();
+
+        const menu = document.createElement('div');
+        menu.className = 'chat-menu';
+
+        const openFavItem = document.createElement('div');
+        openFavItem.className = 'chat-menu-item';
+        openFavItem.textContent = 'Открыть избранное';
+        openFavItem.addEventListener('click', (e) => {
+            e.stopPropagation();
+            closeMenu();
+            openFavorites(sessionId);
+        });
+
+        const renameItem = document.createElement('div');
+        renameItem.className = 'chat-menu-item';
+        renameItem.textContent = 'Переименовать';
+        renameItem.addEventListener('click', (e) => {
+            e.stopPropagation();
+            closeMenu();
+            renameSession(sessionId, currentTitle);
+        });
+
+        const deleteItem = document.createElement('div');
+        deleteItem.className = 'chat-menu-item delete';
+        deleteItem.textContent = 'Удалить';
+        deleteItem.addEventListener('click', (e) => {
+            e.stopPropagation();
+            closeMenu();
+            deleteSession(sessionId);
+        });
+
+        menu.appendChild(openFavItem);
+        menu.appendChild(renameItem);
+        menu.appendChild(deleteItem);
+
+        document.body.appendChild(menu);
+
+        const rect = event.target.getBoundingClientRect();
+        menu.style.top = `${rect.bottom + 4}px`;
+        menu.style.left = `${rect.left - 130}px`;
+
+        activeMenu = menu;
+    }
+
+    function renameSession(sessionId, oldTitle) {
+        const newTitle = prompt('Введите новое название чата:', oldTitle);
+        if (newTitle && newTitle.trim()) {
+            const sessions = getAllSessions();
+            const session = sessions.find(s => s.id === sessionId);
+            if (session) {
+                session.title = newTitle.trim();
+                saveAllSessions(sessions);
+                if (sessionId === activeSessionId) {
+                    chatTitle.textContent = session.title;
+                }
+                renderHistoryList();
+            }
+        }
+    }
+
+    function deleteSession(sessionId) {
+        if (confirm('Вы уверены, что хотите удалить этот чат?')) {
+            let sessions = getAllSessions();
+            sessions = sessions.filter(s => s.id !== sessionId);
+            saveAllSessions(sessions);
+
+            if (activeSessionId === sessionId) {
+                if (sessions.length > 0) {
+                    switchSession(sessions[0].id);
+                } else {
+                    createNewSession();
+                }
+            } else {
+                renderHistoryList();
+            }
+        }
+    }
+
+    function toggleFavorite(messageId) {
+        const sessions = getAllSessions();
+        const currentSession = sessions.find(s => s.id === activeSessionId);
+
+        if (!currentSession) return;
+
+        const msg = currentSession.messages.find(m => m.id === messageId);
+        if (msg) {
+            msg.isFavorite = !msg.isFavorite;
+            saveAllSessions(sessions);
+            renderActiveChat();
+            if (favoritesView.classList.contains('active')) {
+                openFavorites(activeSessionId);
+            }
+        }
+    }
+
+    function openFavorites(sessionId) {
+        if (sessionId !== activeSessionId) {
+            switchSession(sessionId);
+        }
+        
+        const sessions = getAllSessions();
+        const currentSession = sessions.find(s => s.id === activeSessionId);
+        
+        favoritesList.innerHTML = '';
+        const favorites = currentSession ? currentSession.messages.filter(m => m.isFavorite) : [];
+
+        if (favorites.length === 0) {
+            favoritesList.innerHTML = '<div class="empty-favorites">В этом чате нет сохраненных сообщений</div>';
+        } else {
+            favorites.forEach(msg => {
+                const card = document.createElement('div');
+                card.className = 'favorite-card';
+                const label = msg.role === 'user' ? 'Вы' : 'AI Ассистент';
+
+                card.innerHTML = `
+                    <button class="favorite-card-remove">Удалить из избранного</button>
+                    <span class="author-label">${label}</span>
+                    <div>${msg.text}</div>
+                `;
+
+                card.querySelector('.favorite-card-remove').addEventListener('click', () => {
+                    toggleFavorite(msg.id);
+                });
+
+                favoritesList.appendChild(card);
+            });
+        }
+
+        favoritesView.classList.add('active');
+    }
+
+    function closeFavorites() {
+        favoritesView.classList.remove('active');
+    }
+
+    closeFavoritesBtn.addEventListener('click', closeFavorites);
+
+    document.addEventListener('click', () => {
+        closeMenu();
+    });
+
+    function renderActiveChat() {
+        chatLog.innerHTML = '';
+        const sessions = getAllSessions();
+        const currentSession = sessions.find(s => s.id === activeSessionId);
+
+        if (!currentSession) return;
+
+        chatTitle.textContent = currentSession.title;
+
+        currentSession.messages.forEach(msg => {
+            createMessageUI(msg);
+        });
+    }
+
+    function createMessageUI(msgObj) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${msgObj.role}-message`;
+        const label = msgObj.role === 'user' ? 'Вы' : 'AI Ассистент';
+
+        const isFav = msgObj.isFavorite;
+
+        messageDiv.innerHTML = `
+            <button class="bookmark-btn ${isFav ? 'bookmarked' : ''}" title="${isFav ? 'Убрать из избранного' : 'Добавить в избранные'}">🔖</button>
+            <span class="author-label">${label}</span>
+            <div>${msgObj.text}</div>
+        `;
+
+        const bookmarkBtn = messageDiv.querySelector('.bookmark-btn');
+        bookmarkBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleFavorite(msgObj.id);
+        });
+
+        chatLog.appendChild(messageDiv);
+        chatLog.scrollTop = chatLog.scrollHeight;
+    }
+
+    function saveMessageToCurrentSession(role, text) {
+        const sessions = getAllSessions();
+        const currentSession = sessions.find(s => s.id === activeSessionId);
+
+        if (currentSession) {
+            const newMsg = {
+                id: generateId(),
+                role: role,
+                text: text,
+                isFavorite: false
+            };
+
+            currentSession.messages.push(newMsg);
+
+            if (role === 'user' && currentSession.title === 'Новый чат') {
+                currentSession.title = text.length > 25 ? text.substring(0, 25) + '...' : text;
+                chatTitle.textContent = currentSession.title;
+            }
+
+            saveAllSessions(sessions);
+            renderHistoryList();
+            return newMsg;
+        }
+        return null;
+    }
+
+    async function handleSend() {
+        const text = userInput.value.trim();
+        if (!text) return;
+
+        userInput.value = '';
+        saveMessageToCurrentSession('user', text);
+        renderActiveChat();
+
+        try {
+            const response = await fetch(WEBHOOK_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ 
+                    message: text,
+                    sessionId: activeSessionId
+                })
+            });
+
+            const data = await response.json();
+            const replyText = data.reply || data.answer || "Нет ответа от сервера.";
+
+            saveMessageToCurrentSession('ai', replyText);
+            renderActiveChat();
+
+        } catch (error) {
+            console.error(error);
+            saveMessageToCurrentSession('ai', "Ошибка соединения с сервером.");
+            renderActiveChat();
+        }
+    }
+
+    newChatBtn.addEventListener('click', createNewSession);
+    sendBtn.addEventListener('click', handleSend);
+    userInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') handleSend();
+    });
+
+    const existingSessions = getAllSessions();
+    if (existingSessions.length === 0) {
+        createNewSession();
+    } else {
+        switchSession(existingSessions[0].id);
+    }
+
+});
+</script>
+
+</body>
+</html>
